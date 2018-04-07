@@ -13,12 +13,8 @@ csvWriteStream.pipe(writeableStream);
 
 csvReadStream
     .on('data', function(row) {
-        var val = row[DOCKET_SHEET_ENTRIES_COL];
-
-        val = parseArray(row[DOCKET_SHEET_ENTRIES_COL]);
-
-        row[DOCKET_SHEET_ENTRIES_COL] = val.join(',');
-        csvWriteStream.write(row);
+        // replaceWithCSV(row);
+        convertToColumns(row);
     })
     .on('end', function(){
         csvWriteStream.end();
@@ -26,31 +22,68 @@ csvReadStream
 
 readStream.pipe(csvReadStream);
 
+function replaceWithCSV(row){
+    var val = row[DOCKET_SHEET_ENTRIES_COL];
+
+    val = parseArray(row[DOCKET_SHEET_ENTRIES_COL]);
+
+    row[DOCKET_SHEET_ENTRIES_COL] = val.join(',');
+    csvWriteStream.write(row);
+}
+
+function convertToColumns(row){
+    var val = row[DOCKET_SHEET_ENTRIES_COL];
+
+    val = parseArray(row[DOCKET_SHEET_ENTRIES_COL]);
+
+    csvWriteStream.write(val);
+}
 
 function parseArray(val){
     if(typeof val !== 'string') return val;
     
+    const ESCAPE_CHAR = '\\';
     let rtn = [];
-
+    
     for(let i=0, l=val.length,c,s; i<l; i++){
         c = val[i];
 
-        if(c === '"' || c === "'") {
-            s = '';
-            c = val[++i];
-            while( i<l && c !== '"' && c !== "'"){
-                if( c >= 'a' && c <= 'z'
-                    || c >= 'A' && c <= 'Z'
-                    || c >= '0' && c <= '9'){
-                    s += c;
-                }else{
-                    s += ' ';
-                }
-                c = val[++i];
-            }
-            rtn.push(s);
+        if(c === '"') {
+            s = getInnerString(val, i, '"');
+            rtn.push(s.subStr);
+            i = s.index;
+        }else if(c === "'") {
+            s = getInnerString(val, i, "'");
+            rtn.push(s.subStr);
+            i = s.index;
         }
     }
 
     return rtn;
+
+    function getInnerString(str, startIndex, delimiter) {
+        let s = '',
+            c = str[++startIndex],
+            l = str.length;
+
+        while( startIndex<l && c !== delimiter){
+            if( c >= 'a' && c <= 'z'
+                || c >= 'A' && c <= 'Z'
+                || c >= '0' && c <= '9'){
+                s += c;
+            } else if(c === ESCAPE_CHAR){
+                s += ' ';
+                ++startIndex;
+            } else {
+                s += ' ';
+            }
+
+            c = str[++startIndex];
+        }
+
+        return {
+            index: startIndex,
+            subStr: s
+        };
+    }
 }
